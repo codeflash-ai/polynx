@@ -14,6 +14,8 @@ from functools import lru_cache
 from collections import OrderedDict
 from .config import get_cache_mode, get_cache_max_size
 
+_COL_EXPR_PATTERN = re.compile(r'col\("([^"]+)"\)')
+
 logger = logging.getLogger("polynx")
 
 # === Lark grammar
@@ -131,10 +133,16 @@ class PolarsExprBuilder(Transformer):
         cls._registered_udfs[name] = fn
 
     def __init__(self, df_schema=None, local_vars=None):
-        self.schema = set(df_schema or [])
+        self.schema = set(df_schema) if df_schema else set()
         self.cols = set()
-        self.env = {}        
-        self.local_vars = {**PolarsExprBuilder._registered_udfs, **(local_vars or {})}
+        self.env = {}
+        # Use dict unpacking only if local_vars is provided, otherwise just use _registered_udfs dict directly
+        if local_vars:
+            env = PolarsExprBuilder._registered_udfs.copy()
+            env.update(local_vars)
+            self.local_vars = env
+        else:
+            self.local_vars = PolarsExprBuilder._registered_udfs.copy()
 
     def column(self, token):           
         name = str(token[0])
@@ -344,7 +352,9 @@ class PolarsExprBuilder(Transformer):
 
     @staticmethod
     def extract_col_name(expr):
-        match = re.match(r'col\("([^"]+)"\)', str(expr))
+        # Use pre-compiled pattern for efficiency and call str() only once
+        s = str(expr)
+        match = _COL_EXPR_PATTERN.match(s)
         if match:
             return match.group(1)
         raise ValueError(f"Not a column expression: {expr}")
