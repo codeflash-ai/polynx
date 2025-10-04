@@ -131,10 +131,20 @@ class PolarsExprBuilder(Transformer):
         cls._registered_udfs[name] = fn
 
     def __init__(self, df_schema=None, local_vars=None):
-        self.schema = set(df_schema or [])
+        # Avoid repeated construction for empty schema
+        self.schema = set(df_schema) if df_schema else set()
         self.cols = set()
-        self.env = {}        
-        self.local_vars = {**PolarsExprBuilder._registered_udfs, **(local_vars or {})}
+        self.env = {}
+        if local_vars:
+            if PolarsExprBuilder._registered_udfs:
+                # Merge dicts efficiently
+                self.local_vars = PolarsExprBuilder._registered_udfs.copy()
+                self.local_vars.update(local_vars)
+            else:
+                self.local_vars = local_vars.copy() if isinstance(local_vars, dict) else dict(local_vars)
+        else:
+            # Only need to copy if _registered_udfs is not empty
+            self.local_vars = PolarsExprBuilder._registered_udfs.copy() if PolarsExprBuilder._registered_udfs else {}
 
     def column(self, token):           
         name = str(token[0])
@@ -187,12 +197,14 @@ class PolarsExprBuilder(Transformer):
    
     @staticmethod
     def resolve_dtype(value: str):
+        # Remove prefix without creating a new string if not needed
         if value.startswith("pl."):
-            value = value[3:]
+            return POLARS_TYPES[value[3:]]
         return POLARS_TYPES[value]
    
-    def pl_type(self, items): 
-        return PolarsExprBuilder.resolve_dtype("pl." + str(items[0]))
+    def pl_type(self, items):
+        # items[0] is expected to be a string, join inline and delegate to resolve_dtype
+        return PolarsExprBuilder.resolve_dtype(f"pl.{items[0]}")
        
     def kwarg(self, args):
         args = self.resolve_var(args)        
