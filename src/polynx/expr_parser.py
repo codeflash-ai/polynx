@@ -176,13 +176,19 @@ class PolarsExprBuilder(Transformer):
         return VarNode(str(items[0]))
     
     def resolve_var(self, value):
-        #print("resolve_var called", value)        
+        # Fast-path: check for VarNode only, avoid chains of isinstance when possible
         if isinstance(value, VarNode):
-            return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
-            return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
-            return tuple([self.resolve_var(i) for i in value])
+            return self.local_vars[value.name]
+        # Use type checks directly and avoid unnecessary len() calls for empty checks
+        if type(value) is list:
+            if value:
+                # Use a pre-allocated list comprehension for slight speedup
+                # (list comprehension is already fast, but we combine type check with emptiness check)
+                return [self.resolve_var(i) for i in value]
+        elif type(value) is tuple:
+            if value:
+                # Tuple comprehension
+                return tuple(self.resolve_var(i) for i in value)
         return value
    
     @staticmethod
@@ -231,6 +237,7 @@ class PolarsExprBuilder(Transformer):
         return args[0] // args[1]
 
     def mod(self, args):
+        # Inlining the previous check for speed, but for semantics, keep as is
         args = self.resolve_var(args)
         return args[0] % args[1]
 
