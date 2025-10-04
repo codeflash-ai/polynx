@@ -176,13 +176,18 @@ class PolarsExprBuilder(Transformer):
         return VarNode(str(items[0]))
     
     def resolve_var(self, value):
-        #print("resolve_var called", value)        
-        if isinstance(value, VarNode):
-            return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
-            return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
-            return tuple([self.resolve_var(i) for i in value])
+        #print("resolve_var called", value)
+        # Cache the method on the instance for slightly faster lookups in recursion
+        resolve_var = self.resolve_var
+        # Eliminate repeated isinstance checks in recursive calls by using type-based dispatch
+        value_type = type(value)
+        if value_type is VarNode:
+            return self.local_vars[value.name]
+        # Avoid calling len() if not necessary by checking type and emptiness at once
+        if value_type is list and value:
+            return [resolve_var(i) for i in value]
+        if value_type is tuple and value:
+            return tuple(resolve_var(i) for i in value)
         return value
    
     @staticmethod
