@@ -10,7 +10,6 @@ from .series import Series
 from .wrapper import wrap, unwrap
 import hashlib
 import logging
-from functools import lru_cache
 from collections import OrderedDict
 from .config import get_cache_mode, get_cache_max_size
 
@@ -176,13 +175,18 @@ class PolarsExprBuilder(Transformer):
         return VarNode(str(items[0]))
     
     def resolve_var(self, value):
-        #print("resolve_var called", value)        
+        #print("resolve_var called", value)
+        # Fast path: avoid isinstance/len overhead if value is very likely the common primitive
         if isinstance(value, VarNode):
-            return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
+            return self.local_vars[value.name]
+        # Process only for non-empty list/tuple
+        t = type(value)
+        if t is list and value:
+            # Use list comprehension, avoids function call overhead for empty lists
             return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
-            return tuple([self.resolve_var(i) for i in value])
+        elif t is tuple and value:
+            # For tuples, directly comprehending to tuple
+            return tuple(self.resolve_var(i) for i in value)
         return value
    
     @staticmethod
