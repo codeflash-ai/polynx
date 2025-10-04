@@ -10,9 +10,10 @@ from .series import Series
 from .wrapper import wrap, unwrap
 import hashlib
 import logging
-from functools import lru_cache
 from collections import OrderedDict
 from .config import get_cache_mode, get_cache_max_size
+
+_COL_EXPR_RE = re.compile(r'col\("([^"]+)"\)')
 
 logger = logging.getLogger("polynx")
 
@@ -355,7 +356,9 @@ class PolarsExprBuilder(Transformer):
    
     @staticmethod
     def extract_column_names_from_list(lst):            
-        return [PolarsExprBuilder.extract_col_name(child) for child in lst]
+        # Use a local variable to avoid repeated lookup
+        extract = PolarsExprBuilder.extract_col_name
+        return [extract(child) for child in lst]
 
     def dynamic_method(self, args):        
         method_name = str(args[0])
