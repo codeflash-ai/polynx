@@ -9,7 +9,7 @@ import polars as pl
 
 def plx_frame_patch(plx_func_name, func):
     setattr(LazyFrame, plx_func_name, func)
-    setattr(DataFrame, plx_func_name, func)    
+    setattr(DataFrame, plx_func_name, func)
 
 
 def plx_expr_patch(plx_func_name, func):
@@ -21,14 +21,15 @@ def plx_series_patch(plx_func_name, func):
 
 
 def get_schema(self):
+    # Combine conditions for faster isinstance decision tree
     if isinstance(self, (pl.DataFrame, DataFrame)):
         return self.schema
-    if isinstance(self, (pl.LazyFrame, LazyFrame)):
+    elif isinstance(self, (pl.LazyFrame, LazyFrame)):
         return self.collect_schema()
 
 
 # Alias for get_schema
-def schema(self):    
+def schema(self):
     return get_schema(self)
 
 
@@ -67,6 +68,7 @@ def is_numeric_dtype(dtype):
 def is_flt_dtype(dtype):
     return dtype in PL_FLT_DTYPES
 
+
 def plx_merge(left, right, on=None, how="inner", suffixes=("_x", "_y")):
     """
     pandas style merge
@@ -85,7 +87,7 @@ def plx_merge(left, right, on=None, how="inner", suffixes=("_x", "_y")):
     # Ensure `on` is a list
     if isinstance(on, str):
         on = [on]
-   
+
     # Get common columns (excluding join keys)
     common_cols = set(get_columns(left)) & set(get_columns(right)) - set(on)
 
@@ -101,8 +103,9 @@ def plx_merge(left, right, on=None, how="inner", suffixes=("_x", "_y")):
     return df_merged
 
 
-def select(conds, choices, default):              
-    """ multiple condition statements, mirroring np.select """
+def select(conds, choices, default):
+    """multiple condition statements, mirroring np.select"""
+
     def as_expr(x):
         return x if isinstance(x, pl.Expr) else pl.lit(x)
 
@@ -116,7 +119,7 @@ def select(conds, choices, default):
 
 
 def where(cond, choice, default):
-    """ single condition statment, mirroring np.where """
+    """single condition statment, mirroring np.where"""
     return select([cond], [choice], default)
 
 
@@ -125,8 +128,11 @@ def case_when(conds, choices, default):
         return select(conds, choices, default)
     else:
         return where(conds, choices, default)
-        
+
 
 def mondf(beg_date, end_date):
-    return (end_date.dt.year() - beg_date.dt.year())*12 + end_date.dt.month() - beg_date.dt.month()
-
+    return (
+        (end_date.dt.year() - beg_date.dt.year()) * 12
+        + end_date.dt.month()
+        - beg_date.dt.month()
+    )
