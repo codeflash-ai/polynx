@@ -14,6 +14,8 @@ from functools import lru_cache
 from collections import OrderedDict
 from .config import get_cache_mode, get_cache_max_size
 
+_COL_EXPR_PATTERN = re.compile(r'col\("([^"]+)"\)')
+
 logger = logging.getLogger("polynx")
 
 # === Lark grammar
@@ -133,7 +135,7 @@ class PolarsExprBuilder(Transformer):
     def __init__(self, df_schema=None, local_vars=None):
         self.schema = set(df_schema or [])
         self.cols = set()
-        self.env = {}        
+        self.env = {}
         self.local_vars = {**PolarsExprBuilder._registered_udfs, **(local_vars or {})}
 
     def column(self, token):           
@@ -344,14 +346,18 @@ class PolarsExprBuilder(Transformer):
 
     @staticmethod
     def extract_col_name(expr):
-        match = re.match(r'col\("([^"]+)"\)', str(expr))
+        # Avoid unnecessary str conversion if input is already a string
+        # Use the precompiled regex pattern for efficiency
+        expr_str = expr if isinstance(expr, str) else str(expr)
+        match = _COL_EXPR_PATTERN.match(expr_str)
         if match:
             return match.group(1)
         raise ValueError(f"Not a column expression: {expr}")
 
     @staticmethod
-    def extract_column_names_from_tree(tree):            
-        return [PolarsExprBuilder.extract_col_name(child) for child in tree.children]  
+    def extract_column_names_from_tree(tree):
+        # List comprehension is already optimal here
+        return [PolarsExprBuilder.extract_col_name(child) for child in tree.children]
    
     @staticmethod
     def extract_column_names_from_list(lst):            
