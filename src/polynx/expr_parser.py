@@ -133,7 +133,7 @@ class PolarsExprBuilder(Transformer):
     def __init__(self, df_schema=None, local_vars=None):
         self.schema = set(df_schema or [])
         self.cols = set()
-        self.env = {}        
+        self.env = {}
         self.local_vars = {**PolarsExprBuilder._registered_udfs, **(local_vars or {})}
 
     def column(self, token):           
@@ -176,13 +176,19 @@ class PolarsExprBuilder(Transformer):
         return VarNode(str(items[0]))
     
     def resolve_var(self, value):
-        #print("resolve_var called", value)        
+        #print("resolve_var called", value)
+        # Fast path for VarNode, list, tuple, else return immediately
         if isinstance(value, VarNode):
-            return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
-            return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
-            return tuple([self.resolve_var(i) for i in value])
+            return self.local_vars[value.name]
+        # Use switch over type to avoid repeated isinstance/len checks
+        vtype = type(value)
+        if vtype is list:
+            if value:
+                # Fast in-place, reuse list comprehension but avoid function call for empty
+                return [self.resolve_var(i) for i in value]
+        elif vtype is tuple:
+            if value:
+                return tuple(self.resolve_var(i) for i in value)
         return value
    
     @staticmethod
