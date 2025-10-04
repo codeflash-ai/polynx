@@ -131,10 +131,17 @@ class PolarsExprBuilder(Transformer):
         cls._registered_udfs[name] = fn
 
     def __init__(self, df_schema=None, local_vars=None):
-        self.schema = set(df_schema or [])
+        schema = df_schema if df_schema is not None else []
+        self.schema = set(schema)
         self.cols = set()
-        self.env = {}        
-        self.local_vars = {**PolarsExprBuilder._registered_udfs, **(local_vars or {})}
+        self.env = {}
+        # Avoid unnecessary dict merging if possible
+        if local_vars is None or not local_vars:
+            self.local_vars = PolarsExprBuilder._registered_udfs.copy()
+        elif not PolarsExprBuilder._registered_udfs:
+            self.local_vars = local_vars.copy()
+        else:
+            self.local_vars = {**PolarsExprBuilder._registered_udfs, **local_vars}
 
     def column(self, token):           
         name = str(token[0])
