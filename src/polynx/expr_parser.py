@@ -133,7 +133,8 @@ class PolarsExprBuilder(Transformer):
     def __init__(self, df_schema=None, local_vars=None):
         self.schema = set(df_schema or [])
         self.cols = set()
-        self.env = {}        
+        self.env = {}
+        # Keep direct dict-unpacking, it's fast for small dicts and UDF registry likely small
         self.local_vars = {**PolarsExprBuilder._registered_udfs, **(local_vars or {})}
 
     def column(self, token):           
@@ -176,13 +177,15 @@ class PolarsExprBuilder(Transformer):
         return VarNode(str(items[0]))
     
     def resolve_var(self, value):
-        #print("resolve_var called", value)        
-        if isinstance(value, VarNode):
-            return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
+        # Avoid repeated isinstance checks and branching, flatten conditional structure
+        vt = type(value)
+        if vt is VarNode:
+            return self.local_vars[value.name]
+        elif vt is list:
+            # Avoid len(value)>0 check, just return empty list if input empty (faster); behavior unchanged
             return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
-            return tuple([self.resolve_var(i) for i in value])
+        elif vt is tuple:
+            return tuple(self.resolve_var(i) for i in value)
         return value
    
     @staticmethod
@@ -195,7 +198,7 @@ class PolarsExprBuilder(Transformer):
         return PolarsExprBuilder.resolve_dtype("pl." + str(items[0]))
        
     def kwarg(self, args):
-        args = self.resolve_var(args)        
+        args = self.resolve_var(args)
         return (args[0], args[1])
 
     def neg(self, val):
