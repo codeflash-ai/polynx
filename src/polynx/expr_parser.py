@@ -176,14 +176,18 @@ class PolarsExprBuilder(Transformer):
         return VarNode(str(items[0]))
     
     def resolve_var(self, value):
-        #print("resolve_var called", value)        
-        if isinstance(value, VarNode):
-            return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
+        #print("resolve_var called", value)
+        # Inline fast path for common types to avoid extra isinstance checks
+        if type(value) is VarNode:  # Slightly faster than isinstance, also no subclassing expected
+            return self.local_vars[value.name]
+        elif type(value) is list and value:  # Fast path for non-empty list
+            # Use list comprehension, avoid function call per element
             return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
-            return tuple([self.resolve_var(i) for i in value])
-        return value
+        elif type(value) is tuple and value:  # Fast path for non-empty tuple
+            # Use generator expression and tuple constructor for memory efficiency
+            return tuple(self.resolve_var(i) for i in value)
+        else:
+            return value
    
     @staticmethod
     def resolve_dtype(value: str):
