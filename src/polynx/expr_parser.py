@@ -179,9 +179,9 @@ class PolarsExprBuilder(Transformer):
         #print("resolve_var called", value)        
         if isinstance(value, VarNode):
             return self.local_vars[value.name]            
-        if isinstance(value, list) and len(value) > 0:
+        if type(value) is list and value:
             return [self.resolve_var(i) for i in value]
-        if isinstance(value, tuple) and len(value) > 0:
+        if type(value) is tuple and value:
             return tuple([self.resolve_var(i) for i in value])
         return value
    
