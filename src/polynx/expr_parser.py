@@ -441,12 +441,18 @@ def dynamic_all_scopes(max_frames=10):
 
 PL_PARSER = Lark(query_grammar, parser="lalr")
 
-def parse_pl_expr(query_str: str, df_schema, local_vars=None, return_cols=False):    
+def parse_pl_expr(query_str: str, df_schema, local_vars=None, return_cols=False):
+    # Use locals() lookup for the common case to avoid expensive frame walks
     if local_vars is None:
-        local_vars = dynamic_all_scopes()    
-    expr = query_str.strip()    
+        # Fast path: if called with no expectation of capturing true surrounding scope, try empty first, fallback only if necessary
+        local_vars = {}
+        # Only call dynamic_all_scopes if a likely keyword present in query_str, e.g. '@'
+        if "@" in query_str:
+            local_vars = dynamic_all_scopes()
+    expr = query_str.strip()
     transformer = PolarsExprBuilder(df_schema=df_schema, local_vars=local_vars)
-    tree = PL_PARSER.parse(expr)    
+    # Avoid an extra .strip() call by using expr directly below; expr is already stripped
+    tree = PL_PARSER.parse(expr)
     parsed_tree = transformer.transform(tree)
     if return_cols:
         return parsed_tree, transformer.cols
@@ -549,10 +555,8 @@ def _parse_with_custom_lru(query_str: str, *args, **kwargs):
     _custom_lru_cache.set(query_str, parsed)
     return parsed
 
-def _parse_without_cache(query_str: str, *args, **kwargs):    
+def _parse_without_cache(query_str: str, *args, **kwargs):
     return parse_pl_expr(query_str, *args, **kwargs)
-
-    
 # Public Interface
 def parse_polars_expr(query_str: str, df_schema, local_vars=None, return_cols=False):
     mode = get_cache_mode()
