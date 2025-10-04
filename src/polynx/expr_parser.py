@@ -488,10 +488,11 @@ class ExprCacheLRU:
         self.store = OrderedDict()
 
     def get(self, expr_str):
-        key = self._hash(expr_str)
-        if key in self.store:
-            self.store.move_to_end(key)
-            return self.store[key]
+        key = hashlib.sha1(expr_str.encode("utf-8")).hexdigest()
+        store = self.store
+        if key in store:
+            store.move_to_end(key)
+            return store[key]
         return None
 
     def set(self, expr_str, parsed):
